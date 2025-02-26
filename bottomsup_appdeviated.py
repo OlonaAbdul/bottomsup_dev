@@ -26,17 +26,25 @@ end_of_drill_collar = st.number_input("End of Drill Collar (ft)", min_value=0.0,
 length_surface = st.number_input("Length of Surface (ft)", min_value=0.0, step=1.0)
 length_flowline = st.number_input("Length of Flowline (ft)", min_value=0.0, step=1.0)
 
-# Mud Type Selection and Automatic Slippage Factor Assignment
-mud_type = st.selectbox("Select Mud Type", ["Water-Based Mud", "Oil-Based Mud", "Heavy Mud"])
-slippage_factors = {"Water-Based Mud": 1.0, "Oil-Based Mud": 0.90, "Heavy Mud": 0.75}
+mud_type = st.selectbox("Select Mud Type", [
+    "Air Drilling", "Aerated Mud", "Low-Density Water-Based Mud", "High-Density Water-Based Mud",
+    "Low-Density Oil-Based Mud", "High-Density Oil-Based Mud", "Synthetic-Based Mud", "Weighted OBM/WBM"
+])
+
+slippage_factors = {
+    "Air Drilling": 0.4, "Aerated Mud": 0.6, "Low-Density Water-Based Mud": 0.675,
+    "High-Density Water-Based Mud": 0.825, "Low-Density Oil-Based Mud": 0.85,
+    "High-Density Oil-Based Mud": 0.94, "Synthetic-Based Mud": 0.915, "Weighted OBM/WBM": 0.975
+}
+
 slippage_factor = slippage_factors[mud_type]
 st.write(f"Automatically Assigned Slippage Factor: {slippage_factor:.2f}")
 
-if slippage_factor == 1.0:
+if slippage_factor >= 0.9:
     st.info("Minimal slippage: High efficiency.")
-elif slippage_factor == 0.90:
-    st.info("Low slippage: Moderate efficiency.")
-elif slippage_factor == 0.75:
+elif 0.75 <= slippage_factor < 0.9:
+    st.info("Moderate slippage: Balanced efficiency.")
+else:
     st.warning("High slippage: Significant inefficiencies.")
 
 # Derived Lengths
