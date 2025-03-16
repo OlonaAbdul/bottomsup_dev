@@ -136,7 +136,7 @@ def update_data():
     st.balloons()
 
 if st.session_state['tracking']:
-    update_data(lag_time)  # Pass `lag_time` explicitly
+    update_data()  # Pass `lag_time` explicitly
 
 
 st.dataframe(st.session_state['data'])
