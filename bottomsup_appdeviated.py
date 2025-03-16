@@ -98,16 +98,23 @@ if st.button("Start Countdown"):
 
 countdown_placeholder = st.empty()
 
-def update_data(lag_time):
+def update_data():
     while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
-        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
-        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)  # Subtract from initial lag_time
+        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60  # Convert to minutes
 
+        # Recalculate remaining time dynamically
+        updated_lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output if pump_output > 0 else float('inf')
+        
+        # Adjust remaining time based on previous lag time
+        st.session_state['remaining_time'] -= 1 / 60  # Reduce by 1 second in minutes
+
+        # Adjust lag time dynamically (without restarting countdown)
         if pump_speed != st.session_state['last_pump_speed']:
-            st.session_state['countdown_start'] = time.time()
             st.session_state['last_pump_speed'] = pump_speed
-            lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output  # Ensure `lag_time` is updated
+            st.session_state['remaining_time'] = max(0, st.session_state['remaining_time'] * (updated_lag_time / lag_time))  # Scale based on new lag time
+            lag_time = updated_lag_time  # Update the stored lag time
 
+        # Store data update
         new_data = pd.DataFrame({
             'Timestamp': [datetime.now()],
             'Pump Speed (spm)': [pump_speed],
@@ -117,8 +124,10 @@ def update_data(lag_time):
         })
         st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
 
+        # Update UI
         countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
-        time.sleep(1)
+        
+        time.sleep(1)  # Wait for 1 second before next update
 
     countdown_placeholder.success("Sample has reached the surface!")
     st.balloons()
