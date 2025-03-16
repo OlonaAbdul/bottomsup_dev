@@ -98,15 +98,15 @@ if st.button("Start Countdown"):
 
 countdown_placeholder = st.empty()
 
-def update_data():
+def update_data(lag_time):
     while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
         st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)  # Subtract from initial lag_time
 
         if pump_speed != st.session_state['last_pump_speed']:
             st.session_state['countdown_start'] = time.time()
-            lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output  # Ensure lag_time is updated
             st.session_state['last_pump_speed'] = pump_speed
+            lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output  # Ensure `lag_time` is updated
 
         new_data = pd.DataFrame({
             'Timestamp': [datetime.now()],
@@ -122,9 +122,11 @@ def update_data():
 
     countdown_placeholder.success("Sample has reached the surface!")
     st.balloons()
+
     
 
 if st.session_state['tracking']:
-    update_data()
+    update_data(lag_time)  # Pass `lag_time` explicitly
+
 
 st.dataframe(st.session_state['data'])
