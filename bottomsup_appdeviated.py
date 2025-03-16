@@ -1,12 +1,18 @@
 import streamlit as st
 import pandas as pd
 import time
+from datetime import datetime
 
 # Initialize session state for tracking updates
 if 'data' not in st.session_state:
-    st.session_state['data'] = pd.DataFrame(columns=['Timestamp', 'Pump Speed (spm)', 'Pump Output (bbl/min)', 'Remaining Depth (ft)', 'Estimated Time to Surface (min)'])
-if 'traveling' not in st.session_state:
-    st.session_state['traveling'] = False
+    st.session_state['data'] = pd.DataFrame(columns=[
+        'Timestamp', 'Pump Speed (spm)', 'Pump Output (bbl/min)', 'Remaining Depth (ft)', 'Estimated Time to Surface (min)',
+        'Ext Diameter HWDP (in)', 'Ext Diameter Drill Collar (in)', 'Int Diameter Riser (in)', 'Int Diameter Casing (in)', 'Diameter Open Hole (in)',
+        'Last Casing Shoe Depth (ft)', 'Current Hole Depth (ft)', 'End of Drill Collar (ft)', 'Length Surface (ft)',
+        'Annular Volume Open Hole (bbls)', 'Annular Volume Cased Hole (bbls)', 'Annular Volume Surface (bbls)', 'Total Annular Volume (bbls)', 'Lag Time (min)'
+    ])
+if 'countdown_start' not in st.session_state:
+    st.session_state['countdown_start'] = None
 
 # Title and Description
 st.title("Lag Time Calculator for Mudlogging")
@@ -72,39 +78,18 @@ pump_rating = st.number_input("Pump Rating (bbl/stroke)", min_value=0.0, step=0.
 pump_output = pump_speed * pump_rating
 st.write(f"Pump Output: {pump_output:.2f} bbls/min")
 
-if pump_output > 0:
-    lag_time = total_annular_volume / pump_output
-    st.success(f"Lag Time: {lag_time:.2f} minutes")
-else:
-    st.warning("Pump output must be greater than 0 to calculate lag time.")
+lag_time = total_annular_volume / pump_output if pump_output > 0 else float('inf')
+st.success(f"Lag Time: {lag_time:.2f} minutes")
 
-# Real-Time Tracking Integration
-st.header("Real-Time Lag Time Tracking")
+# Countdown Timer
+if st.button("Start Countdown"):
+    st.session_state['countdown_start'] = time.time()
 
-depth_start = current_hole_depth  # Set tracking depth
-if st.button("Start Tracking"):
-    st.session_state['traveling'] = True
-    st.session_state['remaining_depth'] = depth_start
+if st.session_state['countdown_start']:
+    remaining_time = max(0, lag_time - (time.time() - st.session_state['countdown_start']) / 60)
+    if remaining_time > 0:
+        st.warning(f"Sample will reach surface in {remaining_time:.2f} minutes")
+    else:
+        st.success("Sample has reached the surface!")
+        st.balloons()
 
-if st.session_state['traveling']:
-    remaining_depth = st.session_state['remaining_depth']
-    while remaining_depth > 0:
-        if pump_output > 0:
-            estimated_time = total_annular_volume / pump_output
-        else:
-            estimated_time = float('inf')
-        
-        st.metric(label="Time to Surface (min)", value=f"{estimated_time:.2f}")
-        progress = 1 - (st.session_state['remaining_depth'] / depth_start)
-        st.progress(min(progress, 1.0))
-        
-        if st.session_state['remaining_depth'] <= 0:
-            st.success("Sample has reached the surface!")
-            st.balloons()
-            st.session_state['traveling'] = False
-        
-        time.sleep(1)
-        st.rerun()
-
-st.header("Tracking History")
-st.dataframe(st.session_state['data'])
