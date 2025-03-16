@@ -15,6 +15,8 @@ if 'countdown_start' not in st.session_state:
     st.session_state['countdown_start'] = None
 if 'remaining_time' not in st.session_state:
     st.session_state['remaining_time'] = None
+if 'tracking' not in st.session_state:
+    st.session_state['tracking'] = False
 
 # Title and Description
 st.title("Lag Time Calculator for Mudlogging")
@@ -67,46 +69,44 @@ pump_rating = st.number_input("Pump Rating (bbl/stroke)", min_value=0.0, step=0.
 pump_output = pump_speed * pump_rating
 st.write(f"Pump Output: {pump_output:.2f} bbls/min")
 
-lag_time = total_annular_volume / pump_output if pump_output > 0 else float('inf')
+if pump_output > 0:
+    lag_time = total_annular_volume / pump_output
+    if st.session_state['tracking']:
+        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
+        remaining_time = max(0, lag_time - elapsed_time)
+        st.session_state['remaining_time'] = remaining_time
+else:
+    lag_time = float('inf')
 st.success(f"Lag Time: {lag_time:.2f} minutes")
 
 if st.button("Start Countdown"):
     st.session_state['countdown_start'] = time.time()
     st.session_state['remaining_time'] = lag_time
+    st.session_state['tracking'] = True
 
 countdown_placeholder = st.empty()
 
-if st.session_state['countdown_start'] and st.session_state['remaining_time'] is not None:
-    while st.session_state['remaining_time'] > 0:
+def update_data():
+    if st.session_state['tracking']:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
         st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
+        new_data = pd.DataFrame({
+            'Timestamp': [datetime.now()],
+            'Pump Speed (spm)': [pump_speed],
+            'Pump Output (bbl/min)': [pump_output],
+            'Remaining Time (min)': [st.session_state['remaining_time']],
+            'Total Annular Volume (bbls)': [total_annular_volume],
+            'Lag Time (min)': [lag_time]
+        })
+        st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
         countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
         time.sleep(1)
-        st.rerun()
+        st.experimental_rerun()
+
+if st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
+    update_data()
+else:
     countdown_placeholder.success("Sample has reached the surface!")
     st.balloons()
-
-# Data Tracking and Display
-new_data = pd.DataFrame({
-    'Timestamp': [datetime.now()],
-    'Pump Speed (spm)': [pump_speed],
-    'Pump Output (bbl/min)': [pump_output],
-    'Remaining Time (min)': [st.session_state['remaining_time']],
-    'Ext Diameter HWDP (in)': [ext_diameter_hwdp],
-    'Ext Diameter Drill Collar (in)': [ext_diameter_drill_collar],
-    'Int Diameter Riser (in)': [int_diameter_riser],
-    'Int Diameter Casing (in)': [int_diameter_casing],
-    'Diameter Open Hole (in)': [diameter_open_hole],
-    'Last Casing Shoe Depth (ft)': [last_casing_shoe_depth],
-    'Current Hole Depth (ft)': [current_hole_depth],
-    'End of Drill Collar (ft)': [end_of_drill_collar],
-    'Length Surface (ft)': [length_surface],
-    'Annular Volume Open Hole (bbls)': [av_open_hole],
-    'Annular Volume Cased Hole (bbls)': [av_cased_hole],
-    'Annular Volume Surface (bbls)': [av_surface],
-    'Total Annular Volume (bbls)': [total_annular_volume],
-    'Lag Time (min)': [lag_time]
-})
-st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
 
 st.dataframe(st.session_state['data'])
