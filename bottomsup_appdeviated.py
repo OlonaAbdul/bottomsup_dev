@@ -73,8 +73,7 @@ if pump_output > 0:
     lag_time = total_annular_volume / pump_output
     if st.session_state['tracking']:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
-        remaining_time = max(0, lag_time - elapsed_time)
-        st.session_state['remaining_time'] = remaining_time
+        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
 else:
     lag_time = float('inf')
 st.success(f"Lag Time: {lag_time:.2f} minutes")
@@ -87,7 +86,7 @@ if st.button("Start Countdown"):
 countdown_placeholder = st.empty()
 
 def update_data():
-    if st.session_state['tracking']:
+    while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
         st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
         new_data = pd.DataFrame({
@@ -101,12 +100,10 @@ def update_data():
         st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
         countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
         time.sleep(1)
-        st.experimental_rerun()
-
-if st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
-    update_data()
-else:
     countdown_placeholder.success("Sample has reached the surface!")
     st.balloons()
+
+if st.session_state['tracking']:
+    update_data()
 
 st.dataframe(st.session_state['data'])
