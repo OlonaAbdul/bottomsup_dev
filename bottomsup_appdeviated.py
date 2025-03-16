@@ -101,7 +101,8 @@ countdown_placeholder = st.empty()
 def update_data():
     while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
-        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
+        st.session_state['remaining_time'] = max(0, st.session_state.get('remaining_time', 0) - elapsed_time)
+
         if pump_speed != st.session_state['last_pump_speed']:
             st.session_state['countdown_start'] = time.time()
             lag_time = total_annular_volume / pump_output
