@@ -9,7 +9,7 @@ if 'data' not in st.session_state:
         'Timestamp', 'Pump Speed (spm)', 'Pump Output (bbl/min)', 'Remaining Time (min)',
         'Ext Diameter HWDP (in)', 'Ext Diameter Drill Collar (in)', 'Int Diameter Riser (in)', 'Int Diameter Casing (in)', 'Diameter Open Hole (in)',
         'Last Casing Shoe Depth (ft)', 'Current Hole Depth (ft)', 'End of Drill Collar (ft)', 'Length Surface (ft)',
-        'Annular Volume Open Hole (bbls)', 'Annular Volume Cased Hole (bbls)', 'Annular Volume Surface (bbls)', 'Total Annular Volume (bbls)', 'Lag Time (min)'
+        'Annular Volume Open Hole (bbls)', 'Annular Volume Cased Hole (bbls)', 'Annular Volume Surface (bbls)', 'Lag Time (min)'
     ])
 if 'countdown_start' not in st.session_state:
     st.session_state['countdown_start'] = None
@@ -112,7 +112,6 @@ def update_data():
             'Pump Speed (spm)': [pump_speed],
             'Pump Output (bbl/min)': [pump_output],
             'Remaining Time (min)': [st.session_state['remaining_time']],
-            'Total Annular Volume (bbls)': [total_annular_volume],
             'Lag Time (min)': [lag_time]
         })
         st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
