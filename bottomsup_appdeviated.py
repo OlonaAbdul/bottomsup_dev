@@ -17,6 +17,8 @@ if 'remaining_time' not in st.session_state:
     st.session_state['remaining_time'] = None
 if 'tracking' not in st.session_state:
     st.session_state['tracking'] = False
+if 'last_pump_speed' not in st.session_state:
+    st.session_state['last_pump_speed'] = None
 
 # Title and Description
 st.title("Lag Time Calculator for Mudlogging")
@@ -47,6 +49,19 @@ st.write(f"Last Casing Depth: {last_casing_depth:.2f} ft")
 
 length_open_hole = max(0, current_hole_depth - (last_casing_depth + length_surface))
 st.write(f"Length of Open Hole from Casing Shoe: {length_open_hole:.2f} ft")
+
+length_drill_collar_in_casing = max(0, end_of_drill_collar - length_open_hole)
+st.write(f"Length of Drill Collar in Casing: {length_drill_collar_in_casing:.2f} ft")
+
+length_drill_collar_in_open_hole = end_of_drill_collar - length_drill_collar_in_casing
+st.write(f"Length of Drill Collar in Open Hole: {length_drill_collar_in_open_hole:.2f} ft")
+
+length_drill_pipe_in_casing = last_casing_depth - length_drill_collar_in_casing
+st.write(f"Length of Drill Pipe in Casing: {length_drill_pipe_in_casing:.2f} ft")
+
+length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
+st.write(f"Length of Drill Pipe in Open Hole: {length_drill_pipe_in_open_hole:.2f} ft")
+
 
 # Annular Volume Calculations
 st.header("Annular Volumes (bbls)")
@@ -82,6 +97,7 @@ if st.button("Start Countdown"):
     st.session_state['countdown_start'] = time.time()
     st.session_state['remaining_time'] = lag_time
     st.session_state['tracking'] = True
+    st.session_state['last_pump_speed'] = pump_speed
 
 countdown_placeholder = st.empty()
 
@@ -89,6 +105,10 @@ def update_data():
     while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
         st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
+        if pump_speed != st.session_state['last_pump_speed']:
+            st.session_state['countdown_start'] = time.time()
+            lag_time = total_annular_volume / pump_output
+            st.session_state['last_pump_speed'] = pump_speed
         new_data = pd.DataFrame({
             'Timestamp': [datetime.now()],
             'Pump Speed (spm)': [pump_speed],
