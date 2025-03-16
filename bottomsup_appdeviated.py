@@ -6,13 +6,15 @@ from datetime import datetime
 # Initialize session state for tracking updates
 if 'data' not in st.session_state:
     st.session_state['data'] = pd.DataFrame(columns=[
-        'Timestamp', 'Pump Speed (spm)', 'Pump Output (bbl/min)', 'Remaining Depth (ft)', 'Estimated Time to Surface (min)',
+        'Timestamp', 'Pump Speed (spm)', 'Pump Output (bbl/min)', 'Remaining Time (min)',
         'Ext Diameter HWDP (in)', 'Ext Diameter Drill Collar (in)', 'Int Diameter Riser (in)', 'Int Diameter Casing (in)', 'Diameter Open Hole (in)',
         'Last Casing Shoe Depth (ft)', 'Current Hole Depth (ft)', 'End of Drill Collar (ft)', 'Length Surface (ft)',
         'Annular Volume Open Hole (bbls)', 'Annular Volume Cased Hole (bbls)', 'Annular Volume Surface (bbls)', 'Total Annular Volume (bbls)', 'Lag Time (min)'
     ])
 if 'countdown_start' not in st.session_state:
     st.session_state['countdown_start'] = None
+if 'remaining_time' not in st.session_state:
+    st.session_state['remaining_time'] = None
 
 # Title and Description
 st.title("Lag Time Calculator for Mudlogging")
@@ -44,25 +46,12 @@ st.write(f"Last Casing Depth: {last_casing_depth:.2f} ft")
 length_open_hole = max(0, current_hole_depth - (last_casing_depth + length_surface))
 st.write(f"Length of Open Hole from Casing Shoe: {length_open_hole:.2f} ft")
 
-length_drill_collar_in_casing = max(0, end_of_drill_collar - length_open_hole)
-st.write(f"Length of Drill Collar in Casing: {length_drill_collar_in_casing:.2f} ft")
-
-length_drill_collar_in_open_hole = end_of_drill_collar - length_drill_collar_in_casing
-st.write(f"Length of Drill Collar in Open Hole: {length_drill_collar_in_open_hole:.2f} ft")
-
-length_drill_pipe_in_casing = last_casing_depth - length_drill_collar_in_casing
-st.write(f"Length of Drill Pipe in Casing: {length_drill_pipe_in_casing:.2f} ft")
-
-length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
-st.write(f"Length of Drill Pipe in Open Hole: {length_drill_pipe_in_open_hole:.2f} ft")
-
 # Annular Volume Calculations
 st.header("Annular Volumes (bbls)")
-
-av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) +                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
+av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_open_hole)
 st.write(f"Annular Volume of Open Hole: {av_open_hole:.2f} bbls")
 
-av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_casing) +                 ((int_diameter_casing**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_casing)
+av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * last_casing_depth)
 st.write(f"Annular Volume of Cased Hole: {av_cased_hole:.2f} bbls")
 
 av_surface = ((int_diameter_riser**2 - ext_diameter_hwdp**2) * 0.000971 * length_surface)
@@ -81,15 +70,43 @@ st.write(f"Pump Output: {pump_output:.2f} bbls/min")
 lag_time = total_annular_volume / pump_output if pump_output > 0 else float('inf')
 st.success(f"Lag Time: {lag_time:.2f} minutes")
 
-# Countdown Timer
 if st.button("Start Countdown"):
     st.session_state['countdown_start'] = time.time()
+    st.session_state['remaining_time'] = lag_time
 
-if st.session_state['countdown_start']:
-    remaining_time = max(0, lag_time - (time.time() - st.session_state['countdown_start']) / 60)
-    if remaining_time > 0:
-        st.warning(f"Sample will reach surface in {remaining_time:.2f} minutes")
-    else:
-        st.success("Sample has reached the surface!")
-        st.balloons()
+countdown_placeholder = st.empty()
 
+if st.session_state['countdown_start'] and st.session_state['remaining_time'] is not None:
+    while st.session_state['remaining_time'] > 0:
+        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
+        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
+        countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
+        time.sleep(1)
+        st.rerun()
+    countdown_placeholder.success("Sample has reached the surface!")
+    st.balloons()
+
+# Data Tracking and Display
+new_data = pd.DataFrame({
+    'Timestamp': [datetime.now()],
+    'Pump Speed (spm)': [pump_speed],
+    'Pump Output (bbl/min)': [pump_output],
+    'Remaining Time (min)': [st.session_state['remaining_time']],
+    'Ext Diameter HWDP (in)': [ext_diameter_hwdp],
+    'Ext Diameter Drill Collar (in)': [ext_diameter_drill_collar],
+    'Int Diameter Riser (in)': [int_diameter_riser],
+    'Int Diameter Casing (in)': [int_diameter_casing],
+    'Diameter Open Hole (in)': [diameter_open_hole],
+    'Last Casing Shoe Depth (ft)': [last_casing_shoe_depth],
+    'Current Hole Depth (ft)': [current_hole_depth],
+    'End of Drill Collar (ft)': [end_of_drill_collar],
+    'Length Surface (ft)': [length_surface],
+    'Annular Volume Open Hole (bbls)': [av_open_hole],
+    'Annular Volume Cased Hole (bbls)': [av_cased_hole],
+    'Annular Volume Surface (bbls)': [av_surface],
+    'Total Annular Volume (bbls)': [total_annular_volume],
+    'Lag Time (min)': [lag_time]
+})
+st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
+
+st.dataframe(st.session_state['data'])
