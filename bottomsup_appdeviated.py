@@ -19,6 +19,8 @@ if 'tracking' not in st.session_state:
     st.session_state['tracking'] = False
 if 'last_pump_speed' not in st.session_state:
     st.session_state['last_pump_speed'] = None
+if 'last_update_time' not in st.session_state:
+    st.session_state['last_update_time'] = None
 
 # Title and Description
 st.title("Lag Time Calculator for Mudlogging")
@@ -62,7 +64,6 @@ st.write(f"Length of Drill Pipe in Casing: {length_drill_pipe_in_casing:.2f} ft"
 length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
 st.write(f"Length of Drill Pipe in Open Hole: {length_drill_pipe_in_open_hole:.2f} ft")
 
-
 # Annular Volume Calculations
 av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) +                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
 st.write(f"Annular Volume of Open Hole: {av_open_hole:.2f} bbls")
@@ -83,11 +84,9 @@ st.write(f"Pump Output: {pump_output:.2f} bbls/min")
 
 if pump_output > 0:
     lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
-    if st.session_state['tracking']:
-        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
-        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
 else:
     lag_time = float('inf')
+
 st.success(f"Lag Time: {lag_time:.2f} minutes")
 
 if st.button("Start Countdown"):
@@ -95,48 +94,18 @@ if st.button("Start Countdown"):
     st.session_state['remaining_time'] = lag_time
     st.session_state['tracking'] = True
     st.session_state['last_pump_speed'] = pump_speed
+    st.session_state['last_update_time'] = time.time()
 
 countdown_placeholder = st.empty()
 
-def update_data():
-    while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
-        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60  # Convert to minutes
-        
-        # Recalculate lag time dynamically based on the latest pump output
-        if pump_output > 0:
-            updated_lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
-        else:
-            updated_lag_time = float('inf')
-
-        # Adjust remaining time proportionally instead of resetting countdown
-        if pump_speed != st.session_state['last_pump_speed']:
-            scale_factor = updated_lag_time / max(1e-6, st.session_state['remaining_time'])
-            st.session_state['remaining_time'] *= scale_factor
-            st.session_state['last_pump_speed'] = pump_speed
-
-        # Ensure remaining time never goes negative
-        st.session_state['remaining_time'] = max(0, updated_lag_time - elapsed_time)
-
-        # Display updated countdown
-        countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
-
-        # Store updated data
-        new_data = pd.DataFrame({
-            'Timestamp': [datetime.now()],
-            'Pump Speed (spm)': [pump_speed],
-            'Pump Output (bbl/min)': [pump_output],
-            'Remaining Time (min)': [st.session_state['remaining_time']],
-            'Lag Time (min)': [updated_lag_time]
-        })
-        st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
-
-        time.sleep(1)  # Smooth per-second countdown
-
-    countdown_placeholder.success("Sample has reached the surface!")
-    st.balloons()
-
 if st.session_state['tracking']:
-    update_data()  # Pass `lag_time` explicitly
-
+    elapsed_time = (time.time() - st.session_state['last_update_time']) / 60
+    st.session_state['remaining_time'] = max(0, st.session_state['remaining_time'] - elapsed_time)
+    st.session_state['last_update_time'] = time.time()
+    countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
+    if st.session_state['remaining_time'] <= 0:
+        countdown_placeholder.success("Sample has reached the surface!")
+        st.balloons()
+        st.session_state['tracking'] = False
 
 st.dataframe(st.session_state['data'])
