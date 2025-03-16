@@ -64,17 +64,14 @@ st.write(f"Length of Drill Pipe in Open Hole: {length_drill_pipe_in_open_hole:.2
 
 
 # Annular Volume Calculations
-st.header("Annular Volumes (bbls)")
-av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_open_hole)
+av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) +                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
 st.write(f"Annular Volume of Open Hole: {av_open_hole:.2f} bbls")
 
-av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * last_casing_depth)
+av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_casing) +                 ((int_diameter_casing**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_casing)
 st.write(f"Annular Volume of Cased Hole: {av_cased_hole:.2f} bbls")
 
 av_surface = ((int_diameter_riser**2 - ext_diameter_hwdp**2) * 0.000971 * length_surface)
 st.write(f"Annular Volume of Surface Wellhead & Riser: {av_surface:.2f} bbls")
-
-total_annular_volume = av_open_hole + av_cased_hole + av_surface
 
 # Pump Output and Lag Time
 st.header("Pump Output and Lag Time")
@@ -85,7 +82,7 @@ pump_output = pump_speed * pump_rating
 st.write(f"Pump Output: {pump_output:.2f} bbls/min")
 
 if pump_output > 0:
-    lag_time = total_annular_volume / pump_output
+    lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
     if st.session_state['tracking']:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
         st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
