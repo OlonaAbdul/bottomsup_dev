@@ -99,13 +99,21 @@ if st.button("Start Countdown"):
 countdown_placeholder = st.empty()
 
 if st.session_state['tracking']:
-    elapsed_time = (time.time() - st.session_state['last_update_time']) / 60
-    st.session_state['remaining_time'] = max(0, st.session_state['remaining_time'] - elapsed_time)
-    st.session_state['last_update_time'] = time.time()
-    countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
-    if st.session_state['remaining_time'] <= 0:
-        countdown_placeholder.success("Sample has reached the surface!")
-        st.balloons()
-        st.session_state['tracking'] = False
+    countdown_placeholder = st.empty()
+    
+    while st.session_state['remaining_time'] > 0:
+        elapsed_time = (time.time() - st.session_state['last_update_time']) / 60
+        st.session_state['remaining_time'] = max(0, st.session_state['remaining_time'] - elapsed_time)
+        st.session_state['last_update_time'] = time.time()
+        
+        countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
+        
+        if st.session_state['remaining_time'] <= 0:
+            countdown_placeholder.success("Sample has reached the surface!")
+            st.balloons()
+            st.session_state['tracking'] = False
+            break
+        
+        time.sleep(1)  # Ensure real-time countdown
 
 st.dataframe(st.session_state['data'])
