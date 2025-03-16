@@ -102,23 +102,25 @@ def update_data():
     while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60  # Convert to minutes
         
-        # Recalculate lag time dynamically based on current pump speed
+        # Recalculate lag time dynamically based on the latest pump output
         if pump_output > 0:
             updated_lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
         else:
             updated_lag_time = float('inf')
 
-        # Adjust remaining time proportionally instead of restarting countdown
+        # Adjust remaining time proportionally instead of resetting countdown
         if pump_speed != st.session_state['last_pump_speed']:
-            scale_factor = updated_lag_time / st.session_state['remaining_time'] if st.session_state['remaining_time'] > 0 else 1
+            scale_factor = updated_lag_time / max(1e-6, st.session_state['remaining_time'])
             st.session_state['remaining_time'] *= scale_factor
             st.session_state['last_pump_speed'] = pump_speed
 
-        # Update remaining time
+        # Ensure remaining time never goes negative
         st.session_state['remaining_time'] = max(0, updated_lag_time - elapsed_time)
+
+        # Display updated countdown
         countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
 
-        # Store data
+        # Store updated data
         new_data = pd.DataFrame({
             'Timestamp': [datetime.now()],
             'Pump Speed (spm)': [pump_speed],
@@ -128,11 +130,10 @@ def update_data():
         })
         st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
 
-        time.sleep(1)
+        time.sleep(1)  # Smooth per-second countdown
 
     countdown_placeholder.success("Sample has reached the surface!")
     st.balloons()
-    
 
 if st.session_state['tracking']:
     update_data(lag_time)  # Pass `lag_time` explicitly
