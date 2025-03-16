@@ -102,20 +102,23 @@ def update_data():
     while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
         elapsed_time = (time.time() - st.session_state['countdown_start']) / 60  # Convert to minutes
         
-        # Calculate the updated lag time dynamically
-        updated_lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output if pump_output > 0 else float('inf')
+        # Recalculate lag time dynamically based on current pump speed
+        if pump_output > 0:
+            updated_lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
+        else:
+            updated_lag_time = float('inf')
 
-        # Adjust remaining time without resetting countdown
+        # Adjust remaining time proportionally instead of restarting countdown
         if pump_speed != st.session_state['last_pump_speed']:
-            scale_factor = updated_lag_time / lag_time if lag_time > 0 else 1
-            st.session_state['remaining_time'] = max(0, st.session_state['remaining_time'] * scale_factor)
+            scale_factor = updated_lag_time / st.session_state['remaining_time'] if st.session_state['remaining_time'] > 0 else 1
+            st.session_state['remaining_time'] *= scale_factor
             st.session_state['last_pump_speed'] = pump_speed
 
-        # Update UI
-        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
+        # Update remaining time
+        st.session_state['remaining_time'] = max(0, updated_lag_time - elapsed_time)
         countdown_placeholder.warning(f"Sample will reach surface in {st.session_state['remaining_time']:.2f} minutes")
 
-        # Store the latest data
+        # Store data
         new_data = pd.DataFrame({
             'Timestamp': [datetime.now()],
             'Pump Speed (spm)': [pump_speed],
@@ -129,8 +132,6 @@ def update_data():
 
     countdown_placeholder.success("Sample has reached the surface!")
     st.balloons()
-
-
     
 
 if st.session_state['tracking']:
