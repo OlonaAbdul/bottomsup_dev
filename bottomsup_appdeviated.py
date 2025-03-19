@@ -56,51 +56,54 @@ else:
 # Real-Time Tracking
 st.header("Real-Time Sample Tracking")
 
-# Store live pump speed persistently
-if "live_pump_speed" not in st.session_state:
-    st.session_state.live_pump_speed = pump_speed
-
-st.session_state.live_pump_speed = st.number_input(
-    "Live Pump Speed (spm)", min_value=0.0, step=0.1, value=st.session_state.live_pump_speed, key="live_pump_speed"
-)
-
-# Tracking Variables
+# Initialize session state for tracking
 if "tracking" not in st.session_state:
     st.session_state.tracking = False
     st.session_state.current_depth = current_hole_depth
 
+if "live_pump_speed" not in st.session_state:
+    st.session_state.live_pump_speed = pump_speed
+
+# Number input for live pump speed (without modifying session state directly)
+live_pump_speed = st.number_input(
+    "Live Pump Speed (spm)", min_value=0.0, step=0.1, value=st.session_state.live_pump_speed, key="live_pump_speed"
+)
+st.session_state.live_pump_speed = live_pump_speed  # Store the updated value
+
 depth_display = st.empty()
 lag_time_display = st.empty()
 
-# Start/Stop Tracking
-if st.button("Start Tracking Sample"):
-    st.session_state.tracking = True
+# Start/Stop Tracking Buttons
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("Start Tracking Sample"):
+        st.session_state.tracking = True
+with col2:
+    if st.button("Stop Tracking"):
+        st.session_state.tracking = False
 
-if st.button("Stop Tracking"):
-    st.session_state.tracking = False
+# Update tracking progress only if tracking is active
+if st.session_state.tracking and st.session_state.current_depth > 0:
+    live_pump_output = st.session_state.live_pump_speed * pump_rating
 
-# Real-Time Updates
-if st.session_state.tracking:
-    while st.session_state.current_depth > 0 and st.session_state.tracking:
-        live_pump_output = st.session_state.live_pump_speed * pump_rating
+    if live_pump_output > 0:
+        # Recalculate lag time dynamically
+        updated_lag_time = total_annular_volume / live_pump_output
+        upward_velocity = live_pump_output / annular_area  # ft/min
+        depth_change_per_second = upward_velocity / 60  # Convert to feet per second
 
-        if live_pump_output > 0:
-            # Recalculate lag time dynamically
-            updated_lag_time = total_annular_volume / live_pump_output
-            upward_velocity = live_pump_output / annular_area  # ft/min
-            depth_change_per_second = upward_velocity / 60  # Convert to feet per second
+        # Simulate time passing in Streamlit using rerun instead of freezing UI
+        if st.session_state.current_depth > 0:
+            st.session_state.current_depth = max(0, st.session_state.current_depth - (depth_change_per_second * 5))  # 5 sec step
 
-            # Update UI for lag time
-            lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
-
-            time.sleep(45)  # Update every 45 seconds
-            st.session_state.current_depth = max(0, st.session_state.current_depth - (depth_change_per_second * 45))
-            depth_display.write(f"**Current Sample Depth:** {st.session_state.current_depth:.2f} ft")
-        else:
-            st.warning("Pump output is zero. Sample is not moving!")
-            st.session_state.tracking = False
-            break
+        # Display updates
+        lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
+        depth_display.write(f"**Current Sample Depth:** {st.session_state.current_depth:.2f} ft")
 
         if st.session_state.current_depth == 0:
             depth_display.success("✅ Sample has reached the surface!")
             st.session_state.tracking = False
+
+    else:
+        st.warning("Pump output is zero. Sample is not moving!")
+        st.session_state.tracking = False
