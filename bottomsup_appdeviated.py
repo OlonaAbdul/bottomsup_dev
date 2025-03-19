@@ -8,9 +8,6 @@ This application calculates **Bottoms-Up Time** based on well geometry and opera
 Now featuring **real-time tracking** for sample movement!
 """)
 
-# Input Section
-st.header("Input Parameters")
-
 # User Inputs for Diameters (in inches)
 ext_diameter_hwdp = st.number_input("External Diameter of HWDP/Drill Pipe (in)", min_value=0.0, step=0.1)
 ext_diameter_drill_collar = st.number_input("External Diameter of Drill Collar (in)", min_value=0.0, step=0.1)
@@ -32,15 +29,6 @@ length_drill_collar_in_open_hole = end_of_drill_collar - length_drill_collar_in_
 length_drill_pipe_in_casing = last_casing_depth - length_drill_collar_in_casing
 length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
 
-# Display Derived Lengths
-st.header("Derived Lengths")
-st.write(f"**Last Casing Depth:** {last_casing_depth:.2f} ft")
-st.write(f"**Length of Open Hole:** {length_open_hole:.2f} ft")
-st.write(f"**Drill Collar in Casing:** {length_drill_collar_in_casing:.2f} ft")
-st.write(f"**Drill Collar in Open Hole:** {length_drill_collar_in_open_hole:.2f} ft")
-st.write(f"**Drill Pipe in Casing:** {length_drill_pipe_in_casing:.2f} ft")
-st.write(f"**Drill Pipe in Open Hole:** {length_drill_pipe_in_open_hole:.2f} ft")
-
 # Annular Volume Calculations (bbls)
 av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) + \
                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
@@ -50,44 +38,57 @@ av_surface = ((int_diameter_riser**2 - ext_diameter_hwdp**2) * 0.000971 * length
 
 total_annular_volume = av_open_hole + av_cased_hole + av_surface
 
-# Display Annular Volumes
-st.header("Annular Volume Calculations")
-st.write(f"**Annular Volume in Open Hole:** {av_open_hole:.2f} bbls")
-st.write(f"**Annular Volume in Cased Hole:** {av_cased_hole:.2f} bbls")
-st.write(f"**Annular Volume in Surface:** {av_surface:.2f} bbls")
-st.write(f"**Total Annular Volume:** {total_annular_volume:.2f} bbls")
-
 # Pump Output and Lag Time
 st.header("Pump Output and Lag Time")
 pump_speed = st.number_input("Initial Pump Speed (spm)", min_value=0.0, step=0.1)
 pump_rating = st.number_input("Pump Rating (bbl/stroke)", min_value=0.0, step=0.01)
 
-pump_output = pump_speed * pump_rating
+pump_output = pump_speed * pump_rating  # bbl/min
+
 if pump_output > 0:
     lag_time = total_annular_volume / pump_output
+    annular_area = total_annular_volume / current_hole_depth  # bbl/ft
+    upward_velocity = pump_output / annular_area  # ft/min
     st.success(f"Lag Time: {lag_time:.2f} minutes")
 else:
     st.warning("Pump output must be greater than 0 to calculate lag time.")
 
-# Real-Time Tracking Section
+# Real-Time Tracking
+st.header("Real-Time Sample Tracking")
+
+# Store live pump speed persistently
+if "live_pump_speed" not in st.session_state:
+    st.session_state.live_pump_speed = pump_speed
+
+st.session_state.live_pump_speed = st.number_input(
+    "Live Pump Speed (spm)", min_value=0.0, step=0.1, value=st.session_state.live_pump_speed, key="live_pump_speed"
+)
+
 if st.button("Start Tracking Sample"):
-    st.header("Real-Time Sample Tracking")
-    live_pump_speed = st.number_input("Live Pump Speed (spm)", min_value=0.0, step=0.1, value=pump_speed, key="live_pump_speed")
     current_depth = current_hole_depth
     sample_reached_surface = False
-    
+    depth_display = st.empty()  # To prevent multiple print lines
+
     while current_depth > 0 and not sample_reached_surface:
-        live_pump_output = live_pump_speed * pump_rating
+                live_pump_output = st.session_state.live_pump_speed * pump_rating
+        
         if live_pump_output > 0:
-            upward_velocity = total_annular_volume / (lag_time * current_hole_depth)
+            # Recalculate lag time dynamically
+            updated_lag_time = total_annular_volume / live_pump_output
+            upward_velocity = live_pump_output / annular_area  # ft/min
             depth_change_per_second = upward_velocity / 60  # Convert to feet per second
+            
+            # Update UI for lag time
+            lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
+
             time.sleep(45)  # Update every 45 seconds
             current_depth = max(0, current_depth - (depth_change_per_second * 45))
-            st.write(f"Current Sample Depth: {current_depth:.2f} ft")
+            depth_display.write(f"**Current Sample Depth:** {current_depth:.2f} ft")
         else:
             st.warning("Pump output is zero. Sample is not moving!")
             break
+
         
         if current_depth == 0:
-            st.success("✅ Sample has reached the surface!")
+            depth_display.success("✅ Sample has reached the surface!")
             sample_reached_surface = True
