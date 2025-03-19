@@ -71,24 +71,28 @@ if st.button("Start Tracking Sample"):
 
     while current_depth > 0 and not sample_reached_surface:
                 live_pump_output = st.session_state.live_pump_speed * pump_rating
+                        
         
-        if live_pump_output > 0:
-            # Recalculate lag time dynamically
-            updated_lag_time = total_annular_volume / live_pump_output
-            upward_velocity = live_pump_output / annular_area  # ft/min
-            depth_change_per_second = upward_velocity / 60  # Convert to feet per second
-            
-            # Update UI for lag time
-            lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
-
-            time.sleep(45)  # Update every 45 seconds
-            current_depth = max(0, current_depth - (depth_change_per_second * 45))
-            depth_display.write(f"**Current Sample Depth:** {current_depth:.2f} ft")
-        else:
-            st.warning("Pump output is zero. Sample is not moving!")
-            break
+                if live_pump_output > 0:
+                    # Recalculate lag time dynamically
+                    updated_lag_time = total_annular_volume / live_pump_output
+                    upward_velocity = live_pump_output / annular_area  # ft/min
+                    depth_change_per_second = upward_velocity / 60  # Convert to feet per second
+                    
+                    # Update UI for lag time
+                    lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
+        
+                    time.sleep(45)  # Update every 45 seconds
+                    current_depth = max(0, current_depth - (depth_change_per_second * 45))
+                    depth_display.write(f"**Current Sample Depth:** {current_depth:.2f} ft")
+                else:
+                    st.warning("Pump output is zero. Sample is not moving!")
+                    break
 
         
-        if current_depth == 0:
-            depth_display.success("✅ Sample has reached the surface!")
-            sample_reached_surface = True
+                
+
+        
+                if current_depth == 0:
+                    depth_display.success("✅ Sample has reached the surface!")
+                    sample_reached_surface = True
