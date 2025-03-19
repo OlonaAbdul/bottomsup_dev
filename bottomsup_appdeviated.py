@@ -1,29 +1,11 @@
 import streamlit as st
-import pandas as pd
 import time
-from datetime import datetime
-
-# Initialize session state for tracking updates
-if 'data' not in st.session_state:
-    st.session_state['data'] = pd.DataFrame(columns=[
-        'Timestamp', 'Pump Speed (spm)', 'Pump Output (bbl/min)', 'Remaining Time (min)',
-        'Ext Diameter HWDP (in)', 'Ext Diameter Drill Collar (in)', 'Int Diameter Riser (in)', 'Int Diameter Casing (in)', 'Diameter Open Hole (in)',
-        'Last Casing Shoe Depth (ft)', 'Current Hole Depth (ft)', 'End of Drill Collar (ft)', 'Length Surface (ft)',
-        'Annular Volume Open Hole (bbls)', 'Annular Volume Cased Hole (bbls)', 'Annular Volume Surface (bbls)', 'Lag Time (min)'
-    ])
-if 'countdown_start' not in st.session_state:
-    st.session_state['countdown_start'] = None
-if 'remaining_time' not in st.session_state:
-    st.session_state['remaining_time'] = None
-if 'tracking' not in st.session_state:
-    st.session_state['tracking'] = False
-if 'last_pump_speed' not in st.session_state:
-    st.session_state['last_pump_speed'] = None
 
 # Title and Description
-st.title("Lag Time Calculator for Mudlogging")
+st.title("Lag Time Calculator with Real-Time Tracking")
 st.write("""
-This application calculates **Bottoms-Up Time** based on well geometry and operational parameters. Provide the required inputs below.
+This application calculates **Bottoms-Up Time** based on well geometry and operational parameters.
+Now featuring **real-time tracking** for sample movement!
 """)
 
 # Input Section
@@ -43,101 +25,53 @@ end_of_drill_collar = st.number_input("End of Drill Collar (ft)", min_value=0.0,
 length_surface = st.number_input("Length of Surface (ft)", min_value=0.0, step=1.0)
 
 # Derived Lengths
-st.header("Derived Parameters")
 last_casing_depth = last_casing_shoe_depth - length_surface
-st.write(f"Last Casing Depth: {last_casing_depth:.2f} ft")
-
 length_open_hole = max(0, current_hole_depth - (last_casing_depth + length_surface))
-st.write(f"Length of Open Hole from Casing Shoe: {length_open_hole:.2f} ft")
-
 length_drill_collar_in_casing = max(0, end_of_drill_collar - length_open_hole)
-st.write(f"Length of Drill Collar in Casing: {length_drill_collar_in_casing:.2f} ft")
-
 length_drill_collar_in_open_hole = end_of_drill_collar - length_drill_collar_in_casing
-st.write(f"Length of Drill Collar in Open Hole: {length_drill_collar_in_open_hole:.2f} ft")
-
 length_drill_pipe_in_casing = last_casing_depth - length_drill_collar_in_casing
-st.write(f"Length of Drill Pipe in Casing: {length_drill_pipe_in_casing:.2f} ft")
-
 length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
-st.write(f"Length of Drill Pipe in Open Hole: {length_drill_pipe_in_open_hole:.2f} ft")
 
-# Annular Volume Calculations
-st.header("Annular Volumes (bbls)")
-
-av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) +                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
-st.write(f"Annular Volume of Open Hole: {av_open_hole:.2f} bbls")
-
-av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_casing) +                 ((int_diameter_casing**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_casing)
-st.write(f"Annular Volume of Cased Hole: {av_cased_hole:.2f} bbls")
-
+# Annular Volume Calculations (bbls)
+av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) + \
+               ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
+av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_casing) + \
+                ((int_diameter_casing**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_casing)
 av_surface = ((int_diameter_riser**2 - ext_diameter_hwdp**2) * 0.000971 * length_surface)
-st.write(f"Annular Volume of Surface Wellhead & Riser: {av_surface:.2f} bbls")
 
+total_annular_volume = av_open_hole + av_cased_hole + av_surface
+
+# Pump Output and Lag Time
 st.header("Pump Output and Lag Time")
-pump_speed = st.number_input("Pump Speed (spm)", min_value=0.0, step=0.1)
+pump_speed = st.number_input("Initial Pump Speed (spm)", min_value=0.0, step=0.1)
 pump_rating = st.number_input("Pump Rating (bbl/stroke)", min_value=0.0, step=0.01)
 
 pump_output = pump_speed * pump_rating
-st.write(f"Pump Output: {pump_output:.2f} bbls/min")
-
 if pump_output > 0:
-    lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
-    if st.session_state['tracking']:
-        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60
-        st.session_state['remaining_time'] = max(0, lag_time - elapsed_time)
+    lag_time = total_annular_volume / pump_output
+    st.success(f"Lag Time: {lag_time:.2f} minutes")
 else:
-    lag_time = float('inf')
-st.success(f"Lag Time: {lag_time:.2f} minutes")
+    st.warning("Pump output must be greater than 0 to calculate lag time.")
 
-if st.button("Start Countdown"):
-    st.session_state['countdown_start'] = time.time()
-    st.session_state['remaining_time'] = lag_time
-    st.session_state['tracking'] = True
-    st.session_state['last_pump_speed'] = pump_speed
-
-countdown_placeholder = st.empty()
-
-def update_data():
-    while st.session_state['tracking'] and st.session_state['remaining_time'] > 0:
-        elapsed_time = (time.time() - st.session_state['countdown_start']) / 60  # Convert to minutes
-        
-        # Recalculate lag time dynamically based on the latest pump output
-        if pump_output > 0:
-            updated_lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
+# Real-Time Tracking Section
+if st.button("Start Tracking Sample"):
+    st.header("Real-Time Sample Tracking")
+    live_pump_speed = st.number_input("Live Pump Speed (spm)", min_value=0.0, step=0.1, value=pump_speed, key="live_pump_speed")
+    current_depth = current_hole_depth
+    sample_reached_surface = False
+    
+    while current_depth > 0 and not sample_reached_surface:
+        live_pump_output = live_pump_speed * pump_rating
+        if live_pump_output > 0:
+            upward_velocity = total_annular_volume / (lag_time * current_hole_depth)
+            depth_change_per_second = upward_velocity / 60  # Convert to feet per second
+            time.sleep(5)  # Update every 5 seconds
+            current_depth = max(0, current_depth - (depth_change_per_second * 30))
+            st.write(f"Current Sample Depth: {current_depth:.2f} ft")
         else:
-            updated_lag_time = float('inf')
-
-        # Adjust remaining time proportionally instead of resetting countdown
-        if pump_speed != st.session_state['last_pump_speed']:
-            scale_factor = updated_lag_time / max(1e-6, st.session_state['remaining_time'])
-            st.session_state['remaining_time'] *= scale_factor
-            st.session_state['last_pump_speed'] = pump_speed
-
-        # Ensure remaining time never goes negative
-        st.session_state['remaining_time'] = max(0, updated_lag_time - elapsed_time)
+            st.warning("Pump output is zero. Sample is not moving!")
+            break
         
-        # Convert to minutes and seconds format
-        minutes = int(st.session_state['remaining_time'])
-        seconds = int((st.session_state['remaining_time'] - minutes) * 60)
-        countdown_placeholder.warning(f"Sample will reach surface in {minutes} min {seconds} sec")
-        
-        # Store updated data
-        new_data = pd.DataFrame({
-            'Timestamp': [datetime.now()],
-            'Pump Speed (spm)': [pump_speed],
-            'Pump Output (bbl/min)': [pump_output],
-            'Remaining Time (min)': [st.session_state['remaining_time']],
-            'Lag Time (min)': [updated_lag_time]
-        })
-        st.session_state['data'] = pd.concat([st.session_state['data'], new_data], ignore_index=True)
-
-        time.sleep(1)  # Smooth per-second countdown
-
-    countdown_placeholder.success("Sample has reached the surface!")
-    st.balloons()
-
-if st.session_state['tracking']:
-    update_data()
-
-st.dataframe(st.session_state['data'])
+        if current_depth == 0:
+            st.success("✅ Sample has reached the surface!")
+            sample_reached_surface = True
