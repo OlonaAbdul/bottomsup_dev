@@ -64,14 +64,10 @@ if "tracking" not in st.session_state:
 if "live_pump_speed" not in st.session_state:
     st.session_state.live_pump_speed = pump_speed
 
-# Number input for live pump speed (without modifying session state directly)
+# Live pump speed input (without modifying session state directly)
 live_pump_speed = st.number_input(
     "Live Pump Speed (spm)", min_value=0.0, step=0.1, value=st.session_state.live_pump_speed, key="live_pump_speed"
 )
-st.session_state.live_pump_speed = live_pump_speed  # Store the updated value
-
-depth_display = st.empty()
-lag_time_display = st.empty()
 
 # Start/Stop Tracking Buttons
 col1, col2 = st.columns(2)
@@ -82,9 +78,12 @@ with col2:
     if st.button("Stop Tracking"):
         st.session_state.tracking = False
 
-# Update tracking progress only if tracking is active
+depth_display = st.empty()
+lag_time_display = st.empty()
+
+# Real-Time Tracking Loop
 if st.session_state.tracking and st.session_state.current_depth > 0:
-    live_pump_output = st.session_state.live_pump_speed * pump_rating
+    live_pump_output = live_pump_speed * pump_rating
 
     if live_pump_output > 0:
         # Recalculate lag time dynamically
@@ -92,17 +91,20 @@ if st.session_state.tracking and st.session_state.current_depth > 0:
         upward_velocity = live_pump_output / annular_area  # ft/min
         depth_change_per_second = upward_velocity / 60  # Convert to feet per second
 
-        # Simulate time passing in Streamlit using rerun instead of freezing UI
-        if st.session_state.current_depth > 0:
+        while st.session_state.current_depth > 0 and st.session_state.tracking:
             st.session_state.current_depth = max(0, st.session_state.current_depth - (depth_change_per_second * 5))  # 5 sec step
 
-        # Display updates
-        lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
-        depth_display.write(f"**Current Sample Depth:** {st.session_state.current_depth:.2f} ft")
+            # Display updates
+            lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
+            depth_display.write(f"**Current Sample Depth:** {st.session_state.current_depth:.2f} ft")
 
-        if st.session_state.current_depth == 0:
-            depth_display.success("✅ Sample has reached the surface!")
-            st.session_state.tracking = False
+            if st.session_state.current_depth == 0:
+                depth_display.success("✅ Sample has reached the surface!")
+                st.session_state.tracking = False
+                break
+
+            time.sleep(5)
+            st.experimental_rerun()
 
     else:
         st.warning("Pump output is zero. Sample is not moving!")
