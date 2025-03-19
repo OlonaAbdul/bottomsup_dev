@@ -32,6 +32,15 @@ length_drill_collar_in_open_hole = end_of_drill_collar - length_drill_collar_in_
 length_drill_pipe_in_casing = last_casing_depth - length_drill_collar_in_casing
 length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
 
+# Display Derived Lengths
+st.header("Derived Lengths")
+st.write(f"**Last Casing Depth:** {last_casing_depth:.2f} ft")
+st.write(f"**Length of Open Hole:** {length_open_hole:.2f} ft")
+st.write(f"**Drill Collar in Casing:** {length_drill_collar_in_casing:.2f} ft")
+st.write(f"**Drill Collar in Open Hole:** {length_drill_collar_in_open_hole:.2f} ft")
+st.write(f"**Drill Pipe in Casing:** {length_drill_pipe_in_casing:.2f} ft")
+st.write(f"**Drill Pipe in Open Hole:** {length_drill_pipe_in_open_hole:.2f} ft")
+
 # Annular Volume Calculations (bbls)
 av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) + \
                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
@@ -40,6 +49,13 @@ av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000
 av_surface = ((int_diameter_riser**2 - ext_diameter_hwdp**2) * 0.000971 * length_surface)
 
 total_annular_volume = av_open_hole + av_cased_hole + av_surface
+
+# Display Annular Volumes
+st.header("Annular Volume Calculations")
+st.write(f"**Annular Volume in Open Hole:** {av_open_hole:.2f} bbls")
+st.write(f"**Annular Volume in Cased Hole:** {av_cased_hole:.2f} bbls")
+st.write(f"**Annular Volume in Surface:** {av_surface:.2f} bbls")
+st.write(f"**Total Annular Volume:** {total_annular_volume:.2f} bbls")
 
 # Pump Output and Lag Time
 st.header("Pump Output and Lag Time")
@@ -65,8 +81,8 @@ if st.button("Start Tracking Sample"):
         if live_pump_output > 0:
             upward_velocity = total_annular_volume / (lag_time * current_hole_depth)
             depth_change_per_second = upward_velocity / 60  # Convert to feet per second
-            time.sleep(5)  # Update every 5 seconds
-            current_depth = max(0, current_depth - (depth_change_per_second * 30))
+            time.sleep(45)  # Update every 45 seconds
+            current_depth = max(0, current_depth - (depth_change_per_second * 45))
             st.write(f"Current Sample Depth: {current_depth:.2f} ft")
         else:
             st.warning("Pump output is zero. Sample is not moving!")
