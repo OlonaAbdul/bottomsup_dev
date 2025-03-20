@@ -1,12 +1,29 @@
 import streamlit as st
 import time
+import threading
+
+# Initialize session state for samples if not already set
+if 'samples' not in st.session_state:
+    st.session_state.samples = {}
+    st.session_state.completed_samples = {}
+
+# Function to run countdown in a separate thread
+def run_countdown(sample_name, lag_time):
+    for remaining in range(int(lag_time), -1, -1):
+        st.session_state.samples[sample_name]['remaining_time'] = remaining
+        time.sleep(1)
+    
+    # Move sample to completed list
+    st.session_state.completed_samples[sample_name] = st.session_state.samples.pop(sample_name)
+    st.session_state.completed_samples[sample_name]['status'] = "Completed"
+    st.session_state.trigger_balloons = True
 
 # Title and Description
-st.title("Lag Time Calculator with Real-Time Tracking")
-st.write("""
-This application calculates **Bottoms-Up Time** based on well geometry and operational parameters.
-Now featuring **real-time tracking** for sample movement!
-""")
+st.title("Lag Time Calculator and Tracker")
+st.write("Calculate and track multiple lag time calculations in parallel.")
+
+# Input Form for Calculator
+st.header("Lag Time Calculator")
 
 # User Inputs for Diameters (in inches)
 ext_diameter_hwdp = st.number_input("External Diameter of HWDP/Drill Pipe (in)", min_value=0.0, step=0.1)
@@ -22,6 +39,7 @@ end_of_drill_collar = st.number_input("End of Drill Collar (ft)", min_value=0.0,
 length_surface = st.number_input("Length of Surface (ft)", min_value=0.0, step=1.0)
 
 # Derived Lengths
+st.header("Derived Parameters")
 last_casing_depth = last_casing_shoe_depth - length_surface
 length_open_hole = max(0, current_hole_depth - (last_casing_depth + length_surface))
 length_drill_collar_in_casing = max(0, end_of_drill_collar - length_open_hole)
@@ -29,94 +47,61 @@ length_drill_collar_in_open_hole = end_of_drill_collar - length_drill_collar_in_
 length_drill_pipe_in_casing = last_casing_depth - length_drill_collar_in_casing
 length_drill_pipe_in_open_hole = max(0, length_open_hole - end_of_drill_collar)
 
-# Annular Volume Calculations (bbls)
-av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) + \
-               ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
-av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_casing) + \
-                ((int_diameter_casing**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_casing)
+# Annular Volume Calculations
+st.header("Annular Volumes (bbls)")
+av_open_hole = ((diameter_open_hole**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_open_hole) +                ((diameter_open_hole**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_open_hole)
+av_cased_hole = ((int_diameter_casing**2 - ext_diameter_drill_collar**2) * 0.000971 * length_drill_collar_in_casing) +                 ((int_diameter_casing**2 - ext_diameter_hwdp**2) * 0.000971 * length_drill_pipe_in_casing)
 av_surface = ((int_diameter_riser**2 - ext_diameter_hwdp**2) * 0.000971 * length_surface)
 
-total_annular_volume = av_open_hole + av_cased_hole + av_surface
-
-# Pump Output and Lag Time
+# Pump Output and Lag Time Calculation
 st.header("Pump Output and Lag Time")
-pump_speed = st.number_input("Initial Pump Speed (spm)", min_value=0.0, step=0.1)
-pump_rating = st.number_input("Pump Rating (bbl/stroke)", min_value=0.0, step=0.01)
+pump_speed = st.number_input("Pump Speed (spm)", min_value=0.1, step=0.1)
+pump_rating = st.number_input("Pump Rating (bbl/stroke)", min_value=0.01, step=0.01)
 
-pump_output = pump_speed * pump_rating  # bbl/min
+pump_output = pump_speed * pump_rating
+st.write(f"Pump Output: {pump_output:.2f} bbls/min")
 
 if pump_output > 0:
-    lag_time = total_annular_volume / pump_output
-    annular_area = total_annular_volume / current_hole_depth  # bbl/ft
-    upward_velocity = pump_output / annular_area  # ft/min
+    lag_time = (av_open_hole + av_cased_hole + av_surface) / pump_output
     st.success(f"Lag Time: {lag_time:.2f} minutes")
 else:
     st.warning("Pump output must be greater than 0 to calculate lag time.")
+    lag_time = None
 
-# Real-Time Tracking
-st.header("Real-Time Sample Tracking")
+# Start Tracking Multiple Samples
+st.header("Start a New Sample Tracking")
+sample_name = st.text_input("Sample Name (e.g., Sample_3000ft)")
 
-# Initialize session state for tracking
-if "tracking" not in st.session_state:
-    st.session_state.tracking = False
-    st.session_state.current_depth = current_hole_depth
-    st.session_state.live_pump_speed = pump_speed
-
-# Ensure new_pump_speed is initialized before usage
-if "new_pump_speed" not in st.session_state:
-    st.session_state.new_pump_speed = st.session_state.live_pump_speed
-
-def update_live_pump_speed():
-    st.session_state.live_pump_speed = st.session_state.new_pump_speed
-    st.rerun()  # Ensures UI updates
-
-# Use number_input without direct assignment to session_state
-st.number_input(
-    "Live Pump Speed (spm)", 
-    min_value=0.0, 
-    step=0.1, 
-    value=st.session_state.new_pump_speed, 
-    key="new_pump_speed", 
-    on_change=update_live_pump_speed
-)
-
-depth_display = st.empty()
-lag_time_display = st.empty()
-
-# Start/Stop Tracking Buttons
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Start Tracking Sample"):
-        st.session_state.tracking = True
-with col2:
-    if st.button("Stop Tracking"):
-        st.session_state.tracking = False
-
-# Update tracking progress only if tracking is active
-if st.session_state.tracking and st.session_state.current_depth > 0:
-    live_pump_output = st.session_state.live_pump_speed * pump_rating
-
-    if live_pump_output > 0:
-        # Recalculate lag time dynamically
-        updated_lag_time = total_annular_volume / live_pump_output
-        upward_velocity = live_pump_output / annular_area  # ft/min
-        depth_change_per_second = upward_velocity / 60  # Convert to feet per second
-
-        # Update depth every 5 seconds
-        st.session_state.current_depth = max(0, st.session_state.current_depth - (depth_change_per_second * 5))
-
-        # Display updates
-        lag_time_display.write(f"**Updated Lag Time:** {updated_lag_time:.2f} minutes")
-        depth_display.write(f"**Current Sample Depth:** {st.session_state.current_depth:.2f} ft")
-
-        if st.session_state.current_depth == 0:
-            depth_display.success("✅ Sample has reached the surface!")
-            st.session_state.tracking = False
-
-        # Rerun the app every 5 seconds
-        time.sleep(5)
-        st.rerun()
-
+if lag_time and st.button("Start Tracking"):
+    if sample_name and sample_name not in st.session_state.samples:
+        st.session_state.samples[sample_name] = {
+            'pump_speed': pump_speed,
+            'pump_rating': pump_rating,
+            'lag_time': lag_time,
+            'remaining_time': lag_time,
+            'status': "Running"
+        }
+        # Start countdown in a separate thread
+        threading.Thread(target=run_countdown, args=(sample_name, lag_time), daemon=True).start()
+    elif sample_name in st.session_state.samples:
+        st.warning("Sample name must be unique!")
     else:
-        st.warning("Pump output is zero. Sample is not moving!")
-        st.session_state.tracking = False
+        st.warning("Please provide a sample name.")
+
+# Display Active Samples
+st.header("Active Samples")
+for sample, data in st.session_state.samples.items():
+    st.subheader(f"{sample} - {data['status']}")
+    st.progress(1 - (data['remaining_time'] / data['lag_time']))
+    st.write(f"Time Remaining: {data['remaining_time']} minutes")
+
+# Display Completed Samples
+st.header("Completed Samples")
+for sample, data in st.session_state.completed_samples.items():
+    st.subheader(f"{sample} - {data['status']}")
+    st.success(f"Lag Time completed for {sample}!")
+
+# Trigger Balloons when a countdown finishes
+if 'trigger_balloons' in st.session_state and st.session_state.trigger_balloons:
+    st.balloons()
+    st.session_state.trigger_balloons = False
