@@ -11,13 +11,13 @@ def update_countdowns():
     current_time = time.time()
     for sample in list(st.session_state.samples.keys()):
         data = st.session_state.samples[sample]
-        if data['status'] == "Running":
+        if 'start_time' in data and data['status'] == "Running":
             elapsed = current_time - data['start_time']
             remaining = max(0, data['lag_time'] - int(elapsed))
             data['remaining_time'] = remaining
             if remaining == 0:
                 data['status'] = "Completed"
-    st.experimental_rerun()
+    st.rerun()
 
 # Title and Description
 st.title("Lag Time Calculator and Tracker")
@@ -26,7 +26,7 @@ st.write("Calculate and track multiple lag time calculations in parallel.")
 # Sidebar for Sample List
 st.sidebar.header("Active Samples")
 for sample, data in st.session_state.samples.items():
-    time_display = str(datetime.timedelta(seconds=data['remaining_time']))
+    time_display = str(datetime.timedelta(seconds=data.get('remaining_time', 0)))
     st.sidebar.write(f"{sample}: {time_display} ({data['status']})")
     
 # Input Form for Calculator
