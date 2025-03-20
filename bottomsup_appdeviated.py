@@ -62,15 +62,20 @@ if "tracking" not in st.session_state:
     st.session_state.current_depth = current_hole_depth
     st.session_state.live_pump_speed = pump_speed
 
+# Ensure new_pump_speed is initialized before usage
+if "new_pump_speed" not in st.session_state:
+    st.session_state.new_pump_speed = st.session_state.live_pump_speed
+
 def update_live_pump_speed():
     st.session_state.live_pump_speed = st.session_state.new_pump_speed
     st.rerun()  # Ensures UI updates
 
-st.session_state.new_pump_speed = st.number_input(
+# Use number_input without direct assignment to session_state
+st.number_input(
     "Live Pump Speed (spm)", 
     min_value=0.0, 
     step=0.1, 
-    value=st.session_state.live_pump_speed, 
+    value=st.session_state.new_pump_speed, 
     key="new_pump_speed", 
     on_change=update_live_pump_speed
 )
