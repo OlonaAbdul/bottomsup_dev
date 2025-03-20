@@ -1,19 +1,22 @@
 import streamlit as st
 import time
-import threading
 import datetime
 
 # Initialize session state for samples if not already set
 if 'samples' not in st.session_state:
     st.session_state.samples = {}
 
-# Function to run countdown in a separate thread
-def run_countdown(sample_name):
-    while st.session_state.samples[sample_name]['remaining_time'] > 0:
-        time.sleep(1)
-        st.session_state.samples[sample_name]['remaining_time'] -= 1
-        st.experimental_rerun()
-    st.session_state.samples[sample_name]['status'] = "Completed"
+# Function to update countdowns
+def update_countdowns():
+    current_time = time.time()
+    for sample in list(st.session_state.samples.keys()):
+        data = st.session_state.samples[sample]
+        if data['status'] == "Running":
+            elapsed = current_time - data['start_time']
+            remaining = max(0, data['lag_time'] - int(elapsed))
+            data['remaining_time'] = remaining
+            if remaining == 0:
+                data['status'] = "Completed"
     st.experimental_rerun()
 
 # Title and Description
@@ -25,7 +28,7 @@ st.sidebar.header("Active Samples")
 for sample, data in st.session_state.samples.items():
     time_display = str(datetime.timedelta(seconds=data['remaining_time']))
     st.sidebar.write(f"{sample}: {time_display} ({data['status']})")
-
+    
 # Input Form for Calculator
 st.header("Lag Time Calculator")
 
@@ -79,10 +82,15 @@ if lag_time_seconds and st.button("Start Tracking"):
         st.session_state.samples[sample_name] = {
             'lag_time': lag_time_seconds,
             'remaining_time': lag_time_seconds,
-            'status': "Running"
+            'status': "Running",
+            'start_time': time.time()
         }
-        threading.Thread(target=run_countdown, args=(sample_name,), daemon=True).start()
     elif sample_name in st.session_state.samples:
         st.warning("Sample name must be unique!")
     else:
         st.warning("Please provide a sample name.")
+
+# Auto-update countdown
+if len(st.session_state.samples) > 0:
+    time.sleep(1)
+    update_countdowns()
